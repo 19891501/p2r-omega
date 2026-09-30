@@ -1,0 +1,83 @@
+{
+  "authority": {
+    "authorized_signers": [
+      "alice"
+    ],
+    "nonce": "nonce-1",
+    "nonce_scope": "global",
+    "principal": "agent:alice",
+    "threshold": 1
+  },
+  "decision": {
+    "status": "VERIFIED"
+  },
+  "effect": {
+    "argument": {
+      "amount": 9999,
+      "currency": "EUR",
+      "target": "acct-1"
+    },
+    "idempotency_key": "idem-001",
+    "profile": "transfer-v1",
+    "rule": "transfer"
+  },
+  "execution_policy": {
+    "on_same_effect": "deny",
+    "require_decision_status": "VERIFIED",
+    "reservation_timeout_seconds": 300
+  },
+  "intent": {
+    "content": "{\"task\":\"transfer\",\"target\":\"acct-1\",\"amount\":100}",
+    "profile": "literal-structured-intent-v1",
+    "structured_goal": {
+      "amount": 100,
+      "target": "acct-1",
+      "task": "transfer"
+    }
+  },
+  "payload_digest": {
+    "alg": "sha-256",
+    "value": "q7Dx5nKjPpnDGKnNvwbGwy5Nw9oEwvn5IU2u9J8UTR8"
+  },
+  "provenance": [
+    {
+      "path": "/amount",
+      "source": {
+        "evidence_id": "ev-1",
+        "span": {
+          "end": 5,
+          "start": 1
+        }
+      },
+      "value_digest": "rVc2aGUSblVknssjrh1IiHVEl27-pGpI612Fpu600wY"
+    },
+    {
+      "path": "/target",
+      "source": {
+        "evidence_id": "ev-2",
+        "span": {
+          "end": 13,
+          "start": 7
+        }
+      },
+      "value_digest": "AnGq6s8M2jJtFR1-XB5_UMyQTW3a5tNNmkPJME7826U"
+    }
+  ],
+  "signatures": [
+    {
+      "alg": "ed25519",
+      "signer": "alice",
+      "value": "4DaZiIFuEuWd5youzfK9kaa6h_vT5qM8LV0SG7yS_j31iWhmV-kfb2xQ7L7aJQEMHzykDEvnQftWDPSwN09lCA"
+    }
+  ],
+  "type": "p2r/v1",
+  "world": {
+    "discovery": {
+      "query": "acct-1"
+    },
+    "manifest_root": {
+      "alg": "sha-256",
+      "value": "Lbe1gE23dl32WRO1zyd2UcRy9drycqHaugQyszCe6Sc"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "action_semantics": "idempotent",
+  "effect_identity": "vector-effect-identity",
+  "execution_key": "vector-execution-key",
+  "observed_at": 1000,
+  "observed_effect": {
+    "status": "ok",
+    "target": "acct-1"
+  },
+  "observer": {
+    "id": "observer",
+    "scope": [
+      "effect:transfer",
+      "receipt:issue"
+    ]
+  },
+  "payload_digest": "q7Dx5nKjPpnDGKnNvwbGwy5Nw9oEwvn5IU2u9J8UTR8",
+  "receipt_signature": {
+    "alg": "ed25519",
+    "signer": "observer",
+    "value": "it4IwGfTludyXB-yEtRiqJs6aEtiB_bf5x9upL_hsitej910Aoq-4vm5ayXsTCjA-2SB_gtez7G0mspwwfB_Aw"
+  },
+  "result": "COMPLETED",
+  "type": "p2r-receipt/v1"
+}

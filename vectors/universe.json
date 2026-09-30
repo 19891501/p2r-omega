@@ -1,0 +1,15 @@
+[
+  {
+    "amount": 100,
+    "currency": "EUR",
+    "evidence_id": "ev-1",
+    "kind": "document",
+    "title": "Target account"
+  },
+  {
+    "evidence_id": "ev-2",
+    "kind": "document",
+    "status": "verified",
+    "target": "acct-1"
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "keys": {
+    "alice": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w",
+    "bob": "gTl3Dqh9F19Wo1Rmw0x-zMuNipG07jeiXfYPW4_Js5Q",
+    "observer": "7UkoxijRwsbq6QM4kFmVYSlZJzpcY_k2NsFGFKyHN9E"
+  },
+  "test_seed_note": "Private seeds are intentionally not included in distributed vectors."
+}
