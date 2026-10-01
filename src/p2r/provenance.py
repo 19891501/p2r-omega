@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import re
+
 from .canonical import canonicalize
 from .digest import sha256_b64
 from .errors import VerifyError
+
+# RFC 6901 array index: "0" or a decimal integer with no leading zero.
+_ARRAY_INDEX = re.compile(r"^(0|[1-9][0-9]*)$")
 
 
 def _json_pointer_get(value, pointer: str):
@@ -16,11 +21,10 @@ def _json_pointer_get(value, pointer: str):
     for raw in pointer.split("/")[1:]:
         token = raw.replace("~1", "/").replace("~0", "~")
         if isinstance(current, list):
-            try:
-                index = int(token)
-            except ValueError as exc:
-                raise VerifyError("PROVENANCE_PATH_INVALID") from exc
-            if index < 0 or index >= len(current):
+            if _ARRAY_INDEX.fullmatch(token) is None:
+                raise VerifyError("PROVENANCE_PATH_INVALID")
+            index = int(token)
+            if index >= len(current):
                 raise VerifyError("PROVENANCE_PATH_NOT_FOUND")
             current = current[index]
         elif isinstance(current, dict):

@@ -152,7 +152,7 @@ Every provenance item contains:
 The verifier checks:
 
 - evidence ID exists in the resolved universe;
-- path exists using JSON Pointer semantics;
+- path exists using JSON Pointer (RFC 6901) semantics; an array index must be `0` or `[1-9][0-9]*`;
 - value digest matches the current resolved value;
 - `start` and `end` are non-negative integers with `end > start`.
 
