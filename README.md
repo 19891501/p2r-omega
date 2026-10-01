@@ -216,6 +216,17 @@ Those boundaries are intentional. The object is an authorization + attempt-bindi
 
 `src/p2r/` is the frozen protocol. `assurance/` does not add states, caches, or a second execution path. It holds an independent registry model, crash schedules, an RFC 6901 corpus, and the differential oracle runner. The claims those runs support are in `GUARANTEE_MATRIX.md` and `SECURITY_CASE.md`. Anything not listed there as PROUVÉ is not claimed.
 
+Layout around that boundary:
+
+```text
+skills/p2r-assurance/   how to run the checks
+rules/core-freeze.md    when src/p2r/ may change
+agents/assurance.md     replay role, not a second protocol
+hooks/                  no hook installed
+docs/                   index of the root reports
+tests/                  the suite pytest already runs
+```
+
 ## Status tags
 
 **PROUVÉ** — deterministic digesting, Ed25519 signatures, threshold counting, universe-root checking, intent/decision/provenance checks, SQLite reservation state machine, signed receipts, concurrency tests, crash/ambiguity tests.
