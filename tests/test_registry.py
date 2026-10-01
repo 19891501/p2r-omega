@@ -73,6 +73,26 @@ def test_abandon_before_dispatch_removes_only_reserved(tmp_path):
     assert reg.get("k1") is None
 
 
+def test_mark_executed_cannot_seal_ambiguous(tmp_path):
+    reg = Registry(tmp_path / "r.db")
+    reg.reserve("k1", "e1", "deny", 100)
+    reg.mark_ambiguous("k1", 101)
+    with pytest.raises(RegistryError, match="REGISTRY_AMBIGUOUS_CANNOT_EXECUTE"):
+        reg.mark_executed("k1", {"type": "p2r-receipt/v1"}, 102)
+    assert reg.get("k1")["status"] == "RESERVED_AMBIGUOUS"
+    assert reg.get("k1")["receipt_json"] is None
+
+
+def test_mark_ambiguous_does_not_reopen_executed(tmp_path):
+    reg = Registry(tmp_path / "r.db")
+    reg.reserve("k1", "e1", "deny", 100)
+    reg.mark_executed("k1", {"type": "p2r-receipt/v1", "result": "COMPLETED"}, 101)
+    reg.mark_ambiguous("k1", 102)
+    row = reg.get("k1")
+    assert row["status"] == "EXECUTED"
+    assert row["updated_at"] == 101
+
+
 def test_abandon_cannot_delete_ambiguous(tmp_path):
     reg = Registry(tmp_path / "r.db")
     reg.reserve("k1", "e1", "deny", 100)

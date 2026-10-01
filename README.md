@@ -130,11 +130,14 @@ python -m pip install -e ".[dev]"
 pytest -q
 ```
 
-Expected V1 generation result in this repository:
+Expected result on this tree: `127 passed`. The bounded registry model is the slow test.
+Heavier volumes are not repeated on every `pytest`:
 
-```text
-88 passed
+```bash
+PYTHONPATH=src python -m assurance.campaign
 ```
+
+That command rewrites `MODEL_REPORT.md`, `GUARANTEE_MATRIX.md`, `SECURITY_CASE.md`, and `RED_TEAM_REPORT.md` from a fresh run. It does not change `src/p2r/`.
 
 ### Run the deterministic vectors
 
@@ -208,6 +211,10 @@ p2r-omega/
 P2R-Ω V1 does not provide distributed consensus, a payment rail, a blockchain, a global idempotency service, source-byte/span truth verification, or a claim that an external effect happened merely because a receipt exists.
 
 Those boundaries are intentional. The object is an authorization + attempt-binding + observed-receipt mechanism, not a replacement for the systems it calls.
+
+## Assurance, outside the core
+
+`src/p2r/` is the frozen protocol. `assurance/` does not add states, caches, or a second execution path. It holds an independent registry model, crash schedules, an RFC 6901 corpus, and the differential oracle runner. The claims those runs support are in `GUARANTEE_MATRIX.md` and `SECURITY_CASE.md`. Anything not listed there as PROUVÉ is not claimed.
 
 ## Status tags
 

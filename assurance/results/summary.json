@@ -1,0 +1,618 @@
+{
+  "meta": {
+    "generated": "2026-10-01T19:19:11Z",
+    "python": "3.10.21",
+    "platform": "Linux-6.12.8+-x86_64-with-glibc2.36",
+    "git": {
+      "commit": "cd915caab6e49dedf279b18cb46d8f914a4167d3",
+      "status": "?? assurance/\n?? tests/test_assurance.py"
+    }
+  },
+  "model": {
+    "status": "PROUVÉ",
+    "states": 761,
+    "edges": 50987,
+    "actions": 67,
+    "timeout": 2,
+    "keys": [
+      "k0",
+      "k1"
+    ],
+    "effects": [
+      "e0",
+      "e1"
+    ],
+    "nows": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "conflicts": []
+  },
+  "chaos": {
+    "results": [
+      {
+        "id": "CH-01",
+        "title": "exception pendant le dispatch",
+        "first": "RuntimeError",
+        "second": "EFFECT_RECONCILIATION_REQUIRED",
+        "external_calls": 1,
+        "note": "",
+        "status": "PROUVÉ",
+        "problem": null
+      },
+      {
+        "id": "CH-02",
+        "title": "PreDispatchError : abandon puis nouvelle tentative",
+        "first": "NO_DISPATCH",
+        "second": "NO_DISPATCH",
+        "external_calls": 2,
+        "note": "",
+        "status": "PROUVÉ",
+        "problem": null
+      },
+      {
+        "id": "CH-03",
+        "title": "succès : le retry ne redispatche pas",
+        "first": "RECEIPT",
+        "second": "RECEIPT",
+        "external_calls": 1,
+        "note": "",
+        "status": "PROUVÉ",
+        "problem": null
+      },
+      {
+        "id": "CH-04",
+        "title": "exception in-process : ambigu immédiat, même si l'horloge recule",
+        "first": "RuntimeError",
+        "second": "EFFECT_RECONCILIATION_REQUIRED",
+        "external_calls": 1,
+        "note": "une exception dans le processus n'est pas un kill : mark_ambiguous est appelé",
+        "status": "PROUVÉ",
+        "problem": null
+      },
+      {
+        "id": "CH-05",
+        "title": "reçu signé d'un autre payload substitué dans SQLite",
+        "first": "RECEIPT",
+        "second": "RETRY_RECEIPT_PAYLOAD_MISMATCH",
+        "external_calls": 1,
+        "note": "",
+        "status": "PROUVÉ",
+        "problem": null
+      },
+      {
+        "id": "CH-06",
+        "title": "timeout après crash : réconciliation, pas un retry silencieux",
+        "first": "RuntimeError",
+        "second": "EFFECT_RECONCILIATION_REQUIRED",
+        "external_calls": 1,
+        "note": "",
+        "status": "PROUVÉ",
+        "problem": null
+      },
+      {
+        "id": "CH-07",
+        "title": "autre nonce, politique deny",
+        "first": "RECEIPT",
+        "second": "EFFECT_ALREADY_EXECUTED",
+        "external_calls": 1,
+        "note": "",
+        "status": "PROUVÉ",
+        "problem": null
+      },
+      {
+        "id": "CH-08",
+        "title": "autre nonce, allow_new_attempt signé",
+        "first": "RECEIPT",
+        "second": "RECEIPT",
+        "external_calls": 2,
+        "note": "autorisé par la politique signée ; execution_key différente",
+        "status": "PROUVÉ",
+        "problem": null
+      },
+      {
+        "id": "CH-09",
+        "title": "ligne GHOST sur le même effet, autre clé",
+        "first": "RECEIPT",
+        "second": "REGISTRY_STATUS_INVALID",
+        "external_calls": 1,
+        "note": "",
+        "status": "PROUVÉ",
+        "problem": null
+      },
+      {
+        "id": "CH-10",
+        "title": "kill après réservation, reprise dans le timeout",
+        "first": "KILLED_RESERVED",
+        "second": "ALREADY_RESERVED",
+        "external_calls": 0,
+        "note": "le dispatch du processus tué est hors observation ; le processus vivant ne dispatch pas",
+        "status": "PROUVÉ",
+        "problem": null
+      },
+      {
+        "id": "CH-11",
+        "title": "kill après réservation, reprise après timeout",
+        "first": "KILLED_RESERVED",
+        "second": "EFFECT_RECONCILIATION_REQUIRED",
+        "external_calls": 0,
+        "note": "",
+        "status": "PROUVÉ",
+        "problem": null
+      }
+    ],
+    "failed": [],
+    "status": "PROUVÉ"
+  },
+  "ghost_rollback": {
+    "status": "PROUVÉ",
+    "code": "REGISTRY_STATUS_INVALID",
+    "k0": "RESERVED"
+  },
+  "rfc": {
+    "status": "PROUVÉ",
+    "rows": [
+      {
+        "name": "empty document",
+        "pointer": "",
+        "expected": "value",
+        "core": "value",
+        "oracle": "value",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "slash key",
+        "pointer": "/a",
+        "expected": "value",
+        "core": "value",
+        "oracle": "value",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "nested",
+        "pointer": "/a/b",
+        "expected": "value",
+        "core": "value",
+        "oracle": "value",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "tilde escape",
+        "pointer": "/a~1b",
+        "expected": "value",
+        "core": "value",
+        "oracle": "value",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "tilde0",
+        "pointer": "/m~0n",
+        "expected": "value",
+        "core": "value",
+        "oracle": "value",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "left to right ~01",
+        "pointer": "/~01",
+        "expected": "value",
+        "core": "value",
+        "oracle": "value",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "array 0",
+        "pointer": "/0",
+        "expected": "value",
+        "core": "value",
+        "oracle": "value",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "array 1",
+        "pointer": "/1",
+        "expected": "value",
+        "core": "value",
+        "oracle": "value",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "array leading zero",
+        "pointer": "/01",
+        "expected": "invalid",
+        "core": "invalid",
+        "oracle": "invalid",
+        "rfc": "profil",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "object key 01",
+        "pointer": "/01",
+        "expected": "value",
+        "core": "value",
+        "oracle": "value",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "missing",
+        "pointer": "/nope",
+        "expected": "missing",
+        "core": "missing",
+        "oracle": "missing",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "bad escape tilde",
+        "pointer": "/~",
+        "expected": "invalid",
+        "core": "invalid",
+        "oracle": "invalid",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "bad escape ~2",
+        "pointer": "/~2",
+        "expected": "invalid",
+        "core": "invalid",
+        "oracle": "invalid",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "bad escape ~~1",
+        "pointer": "/~~1",
+        "expected": "invalid",
+        "core": "invalid",
+        "oracle": "invalid",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "index past end",
+        "pointer": "/2",
+        "expected": "missing",
+        "core": "missing",
+        "oracle": "missing",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "giant index",
+        "pointer": "/99999999999999999999999999999999999999999999999999999999999999999999999999999999",
+        "expected": "missing",
+        "core": "missing",
+        "oracle": "missing",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "empty token",
+        "pointer": "/",
+        "expected": "value",
+        "core": "value",
+        "oracle": "value",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "uri fragment form",
+        "pointer": "#/a",
+        "expected": "invalid",
+        "core": "invalid",
+        "oracle": "invalid",
+        "rfc": "profil",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "no leading slash",
+        "pointer": "a",
+        "expected": "invalid",
+        "core": "invalid",
+        "oracle": "invalid",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "minus not an index",
+        "pointer": "/-",
+        "expected": "invalid",
+        "core": "invalid",
+        "oracle": "invalid",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "plus not an index",
+        "pointer": "/+1",
+        "expected": "invalid",
+        "core": "invalid",
+        "oracle": "invalid",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "unicode digit",
+        "pointer": "/１",
+        "expected": "invalid",
+        "core": "invalid",
+        "oracle": "invalid",
+        "rfc": "profil",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "scalar descent",
+        "pointer": "/a/b",
+        "expected": "missing",
+        "core": "missing",
+        "oracle": "missing",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      },
+      {
+        "name": "~0~1 chain",
+        "pointer": "/~0~1",
+        "expected": "value",
+        "core": "value",
+        "oracle": "value",
+        "rfc": "conforme",
+        "status": "PROUVÉ"
+      }
+    ],
+    "conflicts": []
+  },
+  "oracle": {
+    "canonical": {
+      "count": 20000,
+      "seed": 20261001,
+      "conflicts": [],
+      "unexpected": [],
+      "sample_sha256": "539fd97044068018e322ed1b2928c242f46800067f585df838d12d502fc8d95c",
+      "status": "PROUVÉ"
+    },
+    "identity": {
+      "count": 5000,
+      "seed": 20261001,
+      "conflicts": [],
+      "status": "PROUVÉ"
+    },
+    "universe": {
+      "count": 1000,
+      "seed": 20261001,
+      "conflicts": [],
+      "status": "PROUVÉ"
+    },
+    "python311": {
+      "count": 2000,
+      "seed": 20261001,
+      "python311": "539fd97044068018e322ed1b2928c242f46800067f585df838d12d502fc8d95c",
+      "local": "539fd97044068018e322ed1b2928c242f46800067f585df838d12d502fc8d95c",
+      "status": "PROUVÉ"
+    }
+  },
+  "concurrency": {
+    "rows": [
+      {
+        "threads": 1,
+        "external_calls": 1,
+        "errors": [],
+        "status": "PROUVÉ"
+      },
+      {
+        "threads": 2,
+        "external_calls": 1,
+        "errors": [],
+        "status": "PROUVÉ"
+      },
+      {
+        "threads": 4,
+        "external_calls": 1,
+        "errors": [
+          "ALREADY_RESERVED"
+        ],
+        "status": "PROUVÉ"
+      },
+      {
+        "threads": 8,
+        "external_calls": 1,
+        "errors": [],
+        "status": "PROUVÉ"
+      },
+      {
+        "threads": 16,
+        "external_calls": 1,
+        "errors": [
+          "ALREADY_RESERVED"
+        ],
+        "status": "PROUVÉ"
+      },
+      {
+        "threads": 32,
+        "external_calls": 1,
+        "errors": [
+          "ALREADY_RESERVED"
+        ],
+        "status": "PROUVÉ"
+      },
+      {
+        "threads": 64,
+        "external_calls": 1,
+        "errors": [
+          "ALREADY_RESERVED"
+        ],
+        "status": "PROUVÉ"
+      }
+    ],
+    "status": "PROUVÉ"
+  },
+  "resources": {
+    "rows": [
+      {
+        "case": "10KB",
+        "bytes": 10011,
+        "seconds": 0.0003,
+        "status": "ok"
+      },
+      {
+        "case": "100KB",
+        "bytes": 100011,
+        "seconds": 0.0004,
+        "status": "ok"
+      },
+      {
+        "case": "1MB",
+        "bytes": 1000011,
+        "seconds": 0.0048,
+        "status": "ok"
+      },
+      {
+        "case": "10MB",
+        "bytes": 10000011,
+        "seconds": 0.1074,
+        "status": "ok"
+      },
+      {
+        "case": "depth-10",
+        "seconds": 0.0,
+        "status": "ok"
+      },
+      {
+        "case": "depth-100",
+        "seconds": 0.0011,
+        "status": "ok"
+      },
+      {
+        "case": "depth-500",
+        "seconds": 0.0007,
+        "status": "RecursionError"
+      },
+      {
+        "case": "depth-1000",
+        "seconds": 0.0003,
+        "status": "RecursionError"
+      },
+      {
+        "case": "control",
+        "seconds": 0.0,
+        "status": "ok"
+      }
+    ],
+    "floats": "TypeError",
+    "note": "RecursionError is a refusal, not an acceptance. No depth cap was added."
+  },
+  "bench": {
+    "samples": 80,
+    "canonicalize": {
+      "n": 80,
+      "p50_us": 231.5,
+      "p95_us": 294.0,
+      "p99_us": 540.8
+    },
+    "digest": {
+      "n": 80,
+      "p50_us": 204.3,
+      "p95_us": 261.3,
+      "p99_us": 288.4
+    },
+    "verify_object": {
+      "n": 80,
+      "p50_us": 536.1,
+      "p95_us": 593.3,
+      "p99_us": 1067.3
+    },
+    "cached_execute": {
+      "n": 80,
+      "p50_us": 1226.3,
+      "p95_us": 1278.8,
+      "p99_us": 1403.8
+    },
+    "first_external_calls": 1,
+    "python": "3.10.21",
+    "platform": "Linux-6.12.8+-x86_64-with-glibc2.36",
+    "status": "PROUVÉ"
+  },
+  "supply": {
+    "python": "3.10.21",
+    "platform": "Linux-6.12.8+-x86_64-with-glibc2.36",
+    "dependencies": {
+      "cryptography": "46.0.7",
+      "pytest": "8.4.2"
+    },
+    "sources": [
+      {
+        "path": "src/p2r/__init__.py",
+        "sha256": "f38f3c4d75807733a4eac3bbbadf7673c89765a4a0351be9ea5f3679b3527b54"
+      },
+      {
+        "path": "src/p2r/authority.py",
+        "sha256": "3f7439677c1e5b6108301d370896515a964de748fd44924f389a45ffe01f73d7"
+      },
+      {
+        "path": "src/p2r/canonical.py",
+        "sha256": "c5ae982ed2aa846eae6657e3819d1f7a5c53a820e5fa856b5228dc10374cae77"
+      },
+      {
+        "path": "src/p2r/decision.py",
+        "sha256": "a38de42baf5a04495a67ee836363fbfae142db480768c9ebcb0700d138448afc"
+      },
+      {
+        "path": "src/p2r/digest.py",
+        "sha256": "a245234274eea4b677eac168f70ad5f1f1d201bac647782254ca434c353151fe"
+      },
+      {
+        "path": "src/p2r/effect.py",
+        "sha256": "5c621cb7bb84d6ca7c72fc3d4978aaecc0ab3658dd7e1f1f08375074623478d0"
+      },
+      {
+        "path": "src/p2r/errors.py",
+        "sha256": "f0b7d4627c1bdc4d09e1915923b3a43162f33a120c88e8175f08ce0a764062ce"
+      },
+      {
+        "path": "src/p2r/executor.py",
+        "sha256": "66bf6d1a028b3ddb3dc6c4bb0d50a99353d63000b83f088ea24618bb0dfac82e"
+      },
+      {
+        "path": "src/p2r/intent.py",
+        "sha256": "5b3c88ee6e15e37f510eb08d738272156014782aaecd322a8f66161a7ea0d175"
+      },
+      {
+        "path": "src/p2r/keys.py",
+        "sha256": "b1ca979e0fc33a255548ec3f7cbed9ff76d1e88c7e48f5bc7253dc559d648970"
+      },
+      {
+        "path": "src/p2r/provenance.py",
+        "sha256": "efec4ce7083b6151b8259ce50e077b8a3274e07b0ae6197b02b767ed6a3386e4"
+      },
+      {
+        "path": "src/p2r/receipt.py",
+        "sha256": "978ca79b616b0e7466cd5227c9ea02b3f5e459904b57a850d49d18000380dbd8"
+      },
+      {
+        "path": "src/p2r/registry.py",
+        "sha256": "0cf0696dc7889d1ebf674e304349288d3971669b42f0ed65e93503e7fac38455"
+      },
+      {
+        "path": "src/p2r/universe.py",
+        "sha256": "ab9a88a8158e237eae850f7320e1f2844c0c25af03b43f30e99dd310c86f9ea5"
+      },
+      {
+        "path": "src/p2r/verify.py",
+        "sha256": "aec9ea289ab5069a659739b911028ed91677e6753c5be4c3d7c0b30edf204460"
+      }
+    ],
+    "network_in_tests": "none — assurance campaigns do not fetch or exec remote code"
+  }
+}
