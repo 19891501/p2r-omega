@@ -18,5 +18,6 @@ The protocol text stays at the repository root so existing paths keep working. T
 | `RELEASE_NOTES.md` | What changed before this layout |
 | `assurance/FORMAL_MODEL.md` | Objects and registry transitions |
 | `assurance/BOUNDARY.md` | Core versus assurance |
+| `docs/NON_INTERFERENCE.md` | Proof that the layout commit does not touch the core |
 
 `tests/` is the executable suite. It is not copied here.
