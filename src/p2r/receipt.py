@@ -67,7 +67,9 @@ def verify_receipt(receipt: dict, keyring, observer_scopes: dict[str, list[str]]
     scope = observer.get("scope", [])
     if not isinstance(scope, list) or any(not isinstance(item, str) for item in scope):
         raise VerifyError("OBSERVER_SCOPE_INVALID")
-    allowed = set(observer_scopes.get(observer_id, []))
+    if observer_id not in observer_scopes:
+        raise VerifyError("OBSERVER_NOT_TRUSTED")
+    allowed = set(observer_scopes[observer_id])
     if not set(scope).issubset(allowed):
         raise VerifyError("OBSERVER_SCOPE_NOT_GRANTED")
 

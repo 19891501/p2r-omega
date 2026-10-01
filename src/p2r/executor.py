@@ -57,7 +57,10 @@ def execute(p2r, ctx, action, action_semantics="idempotent"):
         if not decision.receipt_json:
             raise ExecutionError("RETRY_RECEIPT_MISSING")
         import json
-        cached = json.loads(decision.receipt_json)
+        try:
+            cached = json.loads(decision.receipt_json)
+        except json.JSONDecodeError as exc:
+            raise ExecutionError("RETRY_RECEIPT_INVALID", str(exc)) from exc
         verify_receipt(cached, ctx.keyring, ctx.observer_scopes)
         if cached.get("action_semantics") != action_semantics:
             raise ExecutionError("ACTION_SEMANTICS_MISMATCH")

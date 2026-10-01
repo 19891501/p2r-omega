@@ -62,7 +62,7 @@ The `payload_digest` object itself is restricted to exactly `alg` and `value` in
 
 Canonical V1 supports `null`, booleans, integers, strings, arrays/tuples, and objects with string keys.
 
-Floats are rejected. Object keys are sorted by their UTF-16 big-endian code-unit encoding. JSON is emitted without insignificant separators and with UTF-8 bytes.
+Floats are rejected. Object keys are sorted by their UTF-16 big-endian code-unit encoding. Strings use RFC 8785 escapes, including U+2028 and U+2029. JSON is emitted without insignificant separators and with UTF-8 bytes.
 
 This is a deliberately narrow deterministic subset rather than an unrestricted JSON canonicalizer.
 
@@ -249,7 +249,7 @@ The receipt digest covers every field except `receipt_signature`.
 
 The signer must equal `observer.id`.
 
-The verifier checks Ed25519 validity and requires the declared observer scope to be a subset of the trusted scope granted to that observer.
+The verifier checks Ed25519 validity, requires the observer id to be present in the trusted scope map, and requires the declared observer scope to be a subset of the scope granted to that observer.
 
 ## 16. Retry binding
 

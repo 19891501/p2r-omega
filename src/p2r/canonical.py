@@ -8,6 +8,15 @@ def _utf16_key(value: str) -> bytes:
     return value.encode("utf-16-be", errors="strict")
 
 
+def _canonical_string(value: str) -> bytes:
+    # Python json.dumps leaves U+2028 and U+2029 raw. RFC 8785 requires escapes,
+    # otherwise a JavaScript canonicalizer emits different digest bytes.
+    raw = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return raw.replace("\u2028".encode("utf-8"), b"\\u2028").replace(
+        "\u2029".encode("utf-8"), b"\\u2029"
+    )
+
+
 def canonicalize(value: Any) -> bytes:
     """Serialize the supported JSON subset deterministically.
 
@@ -25,11 +34,7 @@ def canonicalize(value: Any) -> bytes:
     if isinstance(value, float):
         raise TypeError("floats not permitted in canonical payloads")
     if isinstance(value, str):
-        return json.dumps(
-            value,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ).encode("utf-8")
+        return _canonical_string(value)
     if isinstance(value, (list, tuple)):
         return b"[" + b",".join(canonicalize(item) for item in value) + b"]"
     if isinstance(value, dict):

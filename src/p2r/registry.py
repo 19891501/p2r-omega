@@ -118,6 +118,10 @@ class Registry:
             ).fetchall()
 
             for prior in rows:
+                if prior["status"] not in VALID_STATUSES:
+                    raise RegistryError("REGISTRY_STATUS_INVALID")
+
+            for prior in rows:
                 if prior["status"] == "RESERVED_AMBIGUOUS":
                     db.execute("COMMIT")
                     return ReserveDecision("RECONCILIATION_REQUIRED", prior_execution_key=prior["execution_key"])

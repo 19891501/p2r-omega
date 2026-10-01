@@ -5,6 +5,16 @@ from .digest import sha256_b64
 from .errors import VerifyError
 
 
+def nonce_scope(authority: dict) -> str:
+    """Match the spec formula `authority.nonce_scope || "global"`."""
+    scope = authority.get("nonce_scope", "global")
+    if scope is None or scope == "":
+        return "global"
+    if not isinstance(scope, str):
+        raise VerifyError("AUTHORITY_NONCE_SCOPE_INVALID")
+    return scope
+
+
 def _effect(p2r: dict) -> tuple[dict, dict]:
     authority = p2r.get("authority")
     effect = p2r.get("effect")
@@ -34,6 +44,6 @@ def execution_key(p2r: dict) -> str:
     authority, _ = _effect(p2r)
     return sha256_b64(canonicalize({
         "effect_identity": effect_identity(p2r),
-        "nonce_scope": authority.get("nonce_scope", "global"),
+        "nonce_scope": nonce_scope(authority),
         "nonce": authority["nonce"],
     }))
