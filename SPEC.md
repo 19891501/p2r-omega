@@ -152,7 +152,7 @@ Every provenance item contains:
 The verifier checks:
 
 - evidence ID exists in the resolved universe;
-- path exists using JSON Pointer (RFC 6901) semantics; an array index must be `0` or `[1-9][0-9]*`;
+- path exists using RFC 6901 JSON Pointer semantics; reference tokens use RFC 6901 escaping exactly (`~0` for `~`, `~1` for `/`); malformed escapes such as `~`, `~~1`, and `~2` are invalid; array indices must match `0` or `[1-9][0-9]*` (so `01`, `00`, `+1`, `-0`, and `1_0` are invalid); object keys remain ordinary strings, so a key such as `"01"` remains valid;
 - value digest matches the current resolved value;
 - `start` and `end` are non-negative integers with `end > start`.
 

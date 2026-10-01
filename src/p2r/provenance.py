@@ -8,8 +8,25 @@ from .canonical import canonicalize
 from .digest import sha256_b64
 from .errors import VerifyError
 
-# RFC 6901 array index: "0" or a decimal integer with no leading zero.
+
 _ARRAY_INDEX = re.compile(r"^(0|[1-9][0-9]*)$")
+
+
+def _decode_pointer_token(raw: str) -> str:
+    """Decode one RFC 6901 reference token without accepting bad escapes."""
+    out: list[str] = []
+    i = 0
+    while i < len(raw):
+        ch = raw[i]
+        if ch != "~":
+            out.append(ch)
+            i += 1
+            continue
+        if i + 1 >= len(raw) or raw[i + 1] not in "01":
+            raise VerifyError("PROVENANCE_PATH_INVALID")
+        out.append("/" if raw[i + 1] == "1" else "~")
+        i += 2
+    return "".join(out)
 
 
 def _json_pointer_get(value, pointer: str):
@@ -19,10 +36,15 @@ def _json_pointer_get(value, pointer: str):
         return value
     current = value
     for raw in pointer.split("/")[1:]:
-        token = raw.replace("~1", "/").replace("~0", "~")
+        token = _decode_pointer_token(raw)
         if isinstance(current, list):
             if _ARRAY_INDEX.fullmatch(token) is None:
                 raise VerifyError("PROVENANCE_PATH_INVALID")
+            # A longer digit string is past the last legal index. Compare
+            # lengths before int() so a hostile token cannot force a big
+            # conversion. The RFC 6901 grammar is unchanged.
+            if not current or len(token) > len(str(len(current) - 1)):
+                raise VerifyError("PROVENANCE_PATH_NOT_FOUND")
             index = int(token)
             if index >= len(current):
                 raise VerifyError("PROVENANCE_PATH_NOT_FOUND")

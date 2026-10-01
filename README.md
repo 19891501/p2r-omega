@@ -25,6 +25,7 @@ The V1 implementation includes:
 - literal structured-intent verification;
 - `VERIFIED | UNKNOWN | CONFLICT` decisions, with fail-closed default;
 - provenance checks against the resolved universe;
+- strict RFC 6901 JSON Pointer token decoding (`~0` and `~1` only), plus strict array-index grammar (`0` or `[1-9][0-9]*`);
 - stable `effect_identity` and `execution_key`;
 - SQLite reservation states `RESERVED | EXECUTED | RESERVED_AMBIGUOUS`;
 - stale reservation recovery;
@@ -132,7 +133,7 @@ pytest -q
 Expected V1 generation result in this repository:
 
 ```text
-82 passed
+88 passed
 ```
 
 ### Run the deterministic vectors
