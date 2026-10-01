@@ -130,7 +130,7 @@ python -m pip install -e ".[dev]"
 pytest -q
 ```
 
-Expected result on this tree: `133 passed`. The bounded registry model is the slow test. The count at `ac81c41`, before `tests/integration/`, was `127 passed` on both that commit and its parent.
+Expected result on this tree: `151 passed`. The bounded registry model is the slow test. The count at `ac81c41`, before `tests/integration/`, was `127 passed` on both that commit and its parent.
 Heavier volumes are not repeated on every `pytest`:
 
 ```bash
@@ -225,7 +225,10 @@ agents/assurance.md     replay role, not a second protocol
 hooks/                  no hook installed
 docs/                   index of the root reports
 tests/                  the suite pytest already runs
+sentinel/               outside watcher, not an import of the core
 ```
+
+`python scripts/p2r-sentinel check` certifies the current tree only when the suite passes. `--no-replay` stops at `VERIFIED` / `UNKNOWN`. `QUARANTINED` in `.sentinel/` is not a registry status. See `docs/SENTINEL.md`.
 
 ## Status tags
 

@@ -24,6 +24,7 @@ FORBIDDEN = (
     "hooks",
     "docs",
     "assurance",
+    "sentinel",
 )
 
 
