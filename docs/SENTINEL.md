@@ -37,7 +37,10 @@ Each certificate records the digest of the sentinel code that emitted it. If tha
 ```bash
 python scripts/p2r-sentinel check --no-replay
 python scripts/p2r-sentinel check
+python scripts/p2r-sentinel daemon
 python scripts/p2r-sentinel watch --interval 2
 ```
+
+`daemon` is the persistent cycle. It sleeps, wakes, and appends `.sentinel/journal.jsonl`. A wake whose commit and tree are still covered by the valid certificate does not replay and does not mint a new proof. A changed snapshot replays before any new certificate. `QUARANTINED` is written only in that journal and in `.sentinel/`, never in the core registry. The process does not decide, authorize, execute, or edit `src/p2r/`.
 
 `--no-replay` stops at `VERIFIED` / `UNKNOWN`. It does not leave `QUARANTINED`. The sentinel process does not import `p2r`. Replay is a separate pytest process whose cwd is the snapshot, not the live tree.

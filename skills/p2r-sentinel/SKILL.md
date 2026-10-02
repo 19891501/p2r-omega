@@ -12,11 +12,14 @@ The sentinel does not import `p2r` and does not call `execute`.
 ```bash
 python scripts/p2r-sentinel check --no-replay
 python scripts/p2r-sentinel check
+python scripts/p2r-sentinel daemon
 python scripts/p2r-sentinel watch --interval 2
 python scripts/p2r-sentinel status
 ```
 
-`check` without `--no-replay` runs pytest in a detached worktree of `HEAD`. That is the certificate. `watch` is only the loop.
+`daemon` is the long-running cycle. It journals `.sentinel/journal.jsonl`. It replays only when the certified snapshot no longer covers HEAD, or when `--replay-every` SECONDS has elapsed. It does not trade, size, or send orders. `watch` remains a short poll.
+
+`check` without `--no-replay` runs pytest in a detached worktree of `HEAD`. That is one certificate. `daemon` repeats that only when the snapshot changed.
 
 ## Pass
 
@@ -33,6 +36,7 @@ If the worktree is dirty, the result is `UNKNOWN`. Do not call that a drift.
 ## Do not
 
 - edit `src/p2r/` from this skill
+- write `QUARANTINED` or a certificate into the core registry
 - treat `tests/integration/core_manifest.json` as the pin
 - reuse a certificate whose sentinel digest differs; that is `PRIOR_PROOF: NOT_CARRIED`, not a core quarantine
 - report `--no-replay` as `PASS`

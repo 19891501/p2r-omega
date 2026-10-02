@@ -412,3 +412,109 @@ def test_observer_change_does_not_carry_the_previous_proof(tmp_path):
     stored = json.loads((state / "certificates" / f"{first['id']}.json").read_text())
     assert stored["automatically_valid"] is False
     assert stored["not_carried_reason"] == "observer_changed"
+
+
+def test_replay_is_not_due_while_the_certificate_covers():
+    from sentinel.daemon import certificate_covers, replay_due
+
+    covered = {
+        "status": "WATCHING",
+        "valid_certificate": "abc",
+        "observed_commit": "c",
+        "observed_tree": "t",
+    }
+    assert certificate_covers(covered, "c", "t", dirty=False) is True
+    assert certificate_covers(covered, "c", "t", dirty=True) is False
+    assert certificate_covers({**covered, "status": "QUARANTINED"}, "c", "t", dirty=False) is False
+    assert replay_due({"last_replay_at": 10}, 15, None) is False
+    assert replay_due({"last_replay_at": 10}, 15, 10) is False
+    assert replay_due({"last_replay_at": 10}, 20, 10) is True
+
+
+def test_daemon_replays_once_then_journals_unchanged(tmp_path):
+    from sentinel.daemon import run_daemon
+    from sentinel.journal import read
+
+    repo = _repo(tmp_path)
+    state = tmp_path / "state"
+    _bind(repo, state)
+    calls = {"n": 0}
+
+    def replay(_snapshot):
+        calls["n"] += 1
+        return _passed()
+
+    last = run_daemon(repo, state, interval=0, iterations=2, replay=replay, sleep=lambda _seconds: None)
+    rows = read(state)
+    assert calls["n"] == 1
+    assert [row["event"] for row in rows] == ["CERTIFIED", "UNCHANGED"]
+    assert rows[0]["certificate_id"] == rows[1]["certificate_id"]
+    assert rows[0]["result"] == "PASS"
+    assert last["event"] == "UNCHANGED"
+    assert last["replay"] == "SKIPPED"
+    assert json.loads((state / "state.json").read_text())["status"] == "WATCHING"
+    assert list(repo.rglob("*.db")) == []
+
+
+def test_daemon_dirty_view_does_not_drop_the_certificate(tmp_path):
+    from sentinel.daemon import cycle
+    from sentinel.journal import read
+
+    repo = _repo(tmp_path)
+    state = tmp_path / "state"
+    _bind(repo, state)
+    calls = {"n": 0}
+    path = repo / "src" / "p2r" / "executor.py"
+    original = path.read_text()
+
+    def replay(_snapshot):
+        calls["n"] += 1
+        return _passed()
+
+    first = cycle(repo, state, replay=replay, replay_every=None, now_epoch=1)
+    path.write_text(original + "\n")
+    dirty = cycle(repo, state, replay=replay, replay_every=None, now_epoch=2)
+    path.write_text(original)
+    resumed = cycle(repo, state, replay=replay, replay_every=None, now_epoch=3)
+    assert first["event"] == "CERTIFIED"
+    assert dirty["event"] == "WORKTREE_DIRTY"
+    assert dirty["result"] == "UNKNOWN"
+    assert resumed["event"] == "UNCHANGED"
+    assert resumed["certificate_id"] == first["certificate_id"]
+    assert calls["n"] == 1
+    rows = read(state)
+    assert rows[0]["event"] == "CERTIFIED"
+    assert [row["event"] for row in rows] == ["CERTIFIED", "WORKTREE_DIRTY", "UNCHANGED"]
+
+
+def test_daemon_drift_quarantines_without_writing_the_core(tmp_path):
+    from sentinel.daemon import cycle
+
+    repo = _repo(tmp_path)
+    state = tmp_path / "state"
+    _bind(repo, state)
+    path = repo / "src" / "p2r" / "executor.py"
+    original = path.read_bytes()
+
+    def replay(_snapshot):
+        return _passed()
+
+    cycle(repo, state, replay=replay, replay_every=None, now_epoch=1)
+    path.write_bytes(original + b"\n")
+    _commit(repo, "drift")
+    drifted_bytes = path.read_bytes()
+    drifted = cycle(repo, state, replay=replay, replay_every=None, now_epoch=2)
+    assert path.read_bytes() == drifted_bytes
+    assert drifted["event"] == "DRIFT"
+    assert drifted["state"] == "QUARANTINED"
+    assert drifted["result"] == "FAIL"
+    assert list(repo.rglob("*.db")) == []
+    stored = json.loads((state / "state.json").read_text())
+    assert stored["valid_certificate"] is None
+    path.write_bytes(original)
+    _commit(repo, "restore")
+    restored = cycle(repo, state, replay=replay, replay_every=None, now_epoch=3)
+    assert restored["event"] == "RESTORED"
+    assert restored["state"] == "WATCHING"
+    assert restored["result"] == "PASS"
+    assert path.read_bytes() == original

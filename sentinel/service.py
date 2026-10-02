@@ -468,6 +468,14 @@ def main(argv: list[str] | None = None) -> int:
     watch_cmd.add_argument("--detach", action="store_true")
     watch_cmd.add_argument("--timeout", type=float, default=180)
 
+    daemon_cmd = sub.add_parser("daemon")
+    daemon_cmd.add_argument("--interval", type=float, default=30)
+    daemon_cmd.add_argument("--iterations", type=int, default=None)
+    daemon_cmd.add_argument("--replay-every", type=float, default=None)
+    daemon_cmd.add_argument("--no-replay", action="store_true")
+    daemon_cmd.add_argument("--detach", action="store_true")
+    daemon_cmd.add_argument("--timeout", type=float, default=180)
+
     sub.add_parser("status")
 
     accept_cmd = sub.add_parser("accept")
@@ -513,6 +521,47 @@ def main(argv: list[str] | None = None) -> int:
                 iterations=args.iterations,
                 replay=_replay_from_args(args),
             )
+        elif args.cmd == "daemon":
+            from sentinel.daemon import run_daemon
+
+            if args.detach:
+                state_dir.mkdir(parents=True, exist_ok=True)
+                pid = os.fork()
+                if pid > 0:
+                    (state_dir / "pid").write_text(str(pid) + "\n")
+                    sys.stdout.write(f"{pid}\n")
+                    return 0
+                try:
+                    os.setsid()
+                except OSError:
+                    pass
+                try:
+                    entry = run_daemon(
+                        args.repo_path,
+                        state_dir,
+                        interval=args.interval,
+                        iterations=args.iterations,
+                        replay=_replay_from_args(args),
+                        replay_every=args.replay_every,
+                    )
+                    os._exit(0 if entry.get("result") != "FAIL" else 1)
+                except Exception:
+                    os._exit(1)
+            entry = run_daemon(
+                args.repo_path,
+                state_dir,
+                interval=args.interval,
+                iterations=args.iterations,
+                replay=_replay_from_args(args),
+                replay_every=args.replay_every,
+            )
+            sys.stdout.write(entry.get("event", "") + "\n")
+            result = entry.get("result")
+            if result == "PASS":
+                return 0
+            if result == "FAIL":
+                return 1
+            return 3
         else:
             cert = accept(args.repo_path, state_dir, replay=_replay_from_args(args))
     except RuntimeError as exc:
