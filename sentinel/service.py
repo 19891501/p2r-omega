@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import inspect
 import json
 import os
 import re
@@ -21,11 +22,12 @@ from sentinel.boundary import (
     effect_paths,
     forbidden_imports,
     frozen_digest,
-    head_commit,
     installed_hooks,
     tree_digest,
 )
 from sentinel.machine import result_of, settle, split_paths, static_ok
+from sentinel.pin import FROZEN_AT, FROZEN_CORE_DIGEST
+from sentinel.snapshot import acquire, confirm, covers_head, observer_digest, release
 
 
 def _now() -> str:
@@ -84,11 +86,42 @@ def pytest_replay(repo: Path, timeout: float = 180) -> dict:
     return parse_pytest((proc.stdout or "") + "\n" + (proc.stderr or ""), proc.returncode)
 
 
-def _baseline(repo: Path, state_dir: Path) -> tuple[str | None, str]:
+def _pin(state_dir: Path) -> str:
+    current = _read_json(state_dir / "frozen.json")
+    if current and isinstance(current.get("digest"), str):
+        return current["digest"]
+    _write_json(
+        state_dir / "frozen.json",
+        {"digest": FROZEN_CORE_DIGEST, "frozen_at": FROZEN_AT, "source": "sentinel.pin"},
+    )
+    return FROZEN_CORE_DIGEST
+
+
+def _baseline(state_dir: Path) -> tuple[str, str]:
+    pin = _pin(state_dir)
     local = _read_json(state_dir / "authorized.json")
     if local and isinstance(local.get("digest"), str):
         return local["digest"], "local"
-    return frozen_digest(repo), "manifest"
+    return pin, "pin"
+
+
+def _fingerprint(repo: Path) -> tuple[str, ...]:
+    rows = []
+    for rel in installed_hooks(repo):
+        path = repo / rel
+        digest = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else "missing"
+        rows.append(f"{rel}\0{digest}")
+    return tuple(rows)
+
+
+def _call_replay(replay, snapshot: Path) -> dict:
+    try:
+        parameters = inspect.signature(replay).parameters
+    except (TypeError, ValueError):
+        parameters = {"snapshot": None}
+    if len(parameters) == 0:
+        return replay()
+    return replay(snapshot)
 
 
 def _render(cert: dict) -> str:
@@ -112,7 +145,10 @@ def _render(cert: dict) -> str:
         "",
         f"id: {cert.get('id', 'UNKNOWN')}",
         "",
-        f"commit: {cert['commit'] or 'UNKNOWN'}",
+        f"OBSERVED_COMMIT: {cert.get('commit') or 'UNKNOWN'}",
+        f"TREE: {cert.get('tree') or 'UNKNOWN'}",
+        f"CORE_DIGEST: {observed}",
+        f"SNAPSHOT: {cert.get('snapshot') or 'UNKNOWN'}",
         "",
         "CORE:",
         f"{authorized} → {observed}",
@@ -150,13 +186,23 @@ def _render(cert: dict) -> str:
             lines.append("Active hook detected")
         if replay["status"] == "FAIL":
             lines.append("Replay failed")
+        if cert.get("snapshot_error") == "SNAPSHOT_MUTATED":
+            lines.append("Snapshot changed during replay")
+        elif cert.get("snapshot_error"):
+            lines.append("Snapshot check failed")
         lines.append("STATUS = QUARANTINED")
+    if cert.get("prior_proof") == "NOT_CARRIED":
+        lines.extend(["", "PRIOR_PROOF: NOT_CARRIED"])
+    if cert.get("manifest_agreement"):
+        lines.extend(["", f"MANIFEST_AGREES: {cert['manifest_agreement']}"])
     if cert.get("quarantine_lifted"):
         lines.extend(["", f"QUARANTINE LIFTED: {cert['lift_reason']}"])
     if cert["authorized_source"] == "local" and cert["frozen_digest"] and cert["authorized_digest"] != cert["frozen_digest"]:
         lines.extend(["", "FROZEN: DIVERGED"])
     elif cert["frozen_digest"] and cert["observed_digest"] == cert["frozen_digest"]:
         lines.extend(["", "FROZEN: MATCH"])
+    elif cert["frozen_digest"] and cert["observed_digest"] and cert["observed_digest"] != cert["frozen_digest"]:
+        lines.extend(["", "FROZEN: DIVERGED"])
     return "\n".join(lines) + "\n"
 
 
@@ -172,84 +218,161 @@ def run_check(
     replay=None,
     emit_if_unchanged: bool = True,
     accepting: bool = False,
+    observer: str | None = None,
 ) -> dict:
     repo = repo.resolve()
     state_dir = state_dir.resolve()
     state_dir.mkdir(parents=True, exist_ok=True)
     previous = _read_json(state_dir / "state.json") or {}
-    files = core_files(repo)
-    observed = tree_digest(files) if files else None
-    authorized, source = _baseline(repo, state_dir)
-    frozen = frozen_digest(repo)
-    violations = forbidden_imports(repo)
-    paths = effect_paths(repo)
+    observer = observer if observer is not None else observer_digest()
+    authorized, source = _baseline(state_dir)
+    frozen = _pin(state_dir)
+    snap = acquire(repo)
+    skipped = {"status": "SKIPPED", "passed": None, "failed": None, "errors": None, "total": None, "detail": "not run"}
+    snapshot_error = None
+    manifest = None
+    try:
+        if not snap.bound or snap.path is None:
+            observed = None
+            violations = []
+            paths: list[str] = []
+            hooks = []
+            boundary_ok = False
+            replay_out = skipped
+            snapshot_ok = False
+            head_covers = False
+            snapshot_label = snap.reason or "SNAPSHOT_FAILED"
+        else:
+            git_files = core_files(snap.path)
+            observed = tree_digest(git_files) if git_files else None
+            from sentinel.snapshot import core_from_tree
+
+            object_files = core_from_tree(repo, snap.tree or "")
+            if tree_digest(object_files) != observed:
+                snapshot_error = "TREE_DIGEST_CHANGED"
+            violations = forbidden_imports(snap.path)
+            paths = effect_paths(snap.path)
+            hooks = sorted(set(installed_hooks(repo) + installed_hooks(snap.path)))
+            boundary_ok = static_ok(violations, paths, hooks)
+            manifest = frozen_digest(snap.path)
+            hooks_before = _fingerprint(repo)
+            if replay is None:
+                replay_out = skipped
+            else:
+                replay_out = _call_replay(replay, snap.path)
+            if snapshot_error is None:
+                snapshot_error = confirm(snap, observed or "")
+            if snapshot_error is None and _fingerprint(repo) != hooks_before:
+                snapshot_error = "HOOKS_CHANGED"
+            snapshot_ok = snapshot_error is None
+            head_covers = covers_head(snap)
+            snapshot_label = "BOUND" if snapshot_ok else snapshot_error
+    finally:
+        release(snap)
     authorized_paths, alternate = split_paths(paths)
-    hooks = installed_hooks(repo)
-    boundary_ok = static_ok(violations, paths, hooks)
-    if replay is None:
-        replay_out = {"status": "SKIPPED", "passed": None, "failed": None, "errors": None, "total": None, "detail": "not run"}
-    else:
-        replay_out = replay()
-    digest_match = authorized is not None and observed == authorized
+    digest_match = observed is not None and observed == authorized
     result = result_of(
-        baseline_known=authorized is not None,
+        baseline_known=True,
         digest_match=digest_match,
         boundary_ok=boundary_ok,
         replay_status=replay_out["status"],
+        snapshot_bound=snap.bound,
+        snapshot_ok=snapshot_ok,
     )
-    state_name, trace = settle(previous.get("status"), result, authorized is not None)
+    state_name, trace = settle(previous.get("status"), result, True, snap.bound)
+    if result == "PASS" and not head_covers:
+        state_name = "CERTIFIED"
+        trace = ["OBSERVED", "VERIFIED", "CERTIFIED"]
+    reason = None if snap.bound and snapshot_ok else snapshot_label
     same_view = (
         previous.get("status") == "WATCHING"
         and state_name == "WATCHING"
         and previous.get("observed_digest") == observed
-        and previous.get("observed_commit") == head_commit(repo)
+        and previous.get("observed_commit") == snap.commit
+        and previous.get("observed_tree") == snap.tree
+        and previous.get("observer_digest") == observer
         and previous.get("valid_certificate")
     )
-    if same_view and not emit_if_unchanged:
+    repeat = (
+        not emit_if_unchanged
+        and previous.get("status") == state_name
+        and previous.get("result") == result
+        and previous.get("reason") == reason
+        and previous.get("observed_commit") == snap.commit
+        and previous.get("observer_digest") == observer
+    )
+    if (same_view or repeat) and not emit_if_unchanged:
         previous["last_seen"] = _now()
         _write_json(state_dir / "state.json", previous)
-        latest = _read_json(state_dir / "certificates" / f"{previous['valid_certificate']}.json")
+        cert_id = previous.get("valid_certificate")
+        latest = _read_json(state_dir / "certificates" / f"{cert_id}.json") if cert_id else None
+        if latest is None and (state_dir / "latest.txt").is_file():
+            return {"text": (state_dir / "latest.txt").read_text(), "result": result, "state": state_name}
         return latest or previous
 
+    not_carried = False
+    previous_observer = previous.get("observer_digest")
+    if previous.get("valid_certificate") and previous_observer and previous_observer != observer:
+        prior = _read_json(state_dir / "certificates" / f"{previous['valid_certificate']}.json")
+        if prior is not None:
+            prior["automatically_valid"] = False
+            prior["not_carried_reason"] = "observer_changed"
+            _write_json(state_dir / "certificates" / f"{prior['id']}.json", prior)
+        not_carried = True
     lifted = previous.get("status") == "QUARANTINED" and state_name == "WATCHING"
     invalidated = state_name == "QUARANTINED" and previous.get("status") != "QUARANTINED" and bool(previous.get("valid_certificate"))
     lift_reason = None
     if lifted:
         lift_reason = "accepted" if accepting or previous.get("accepting") else "restored"
-    commit = head_commit(repo)
+    if manifest is None:
+        manifest_agreement = "ABSENT"
+    elif manifest == observed:
+        manifest_agreement = "YES"
+    else:
+        manifest_agreement = "NO"
     payload = {
         "alternate_paths": alternate,
         "authorized_digest": authorized,
         "authorized_paths": authorized_paths,
         "authorized_source": source,
-        "baseline_known": authorized is not None,
-        "commit": commit,
+        "automatically_valid": result == "PASS",
+        "baseline_known": True,
+        "commit": snap.commit,
+        "covers_head": head_covers,
         "digest_match": digest_match,
         "frozen_digest": frozen,
         "hooks": hooks,
         "import_violations": violations,
         "issued_at": _now(),
         "lift_reason": lift_reason,
+        "manifest_agreement": manifest_agreement,
+        "manifest_digest": manifest,
         "observed_digest": observed,
+        "observer_digest": observer,
         "previous_certificate_invalidated": invalidated,
+        "prior_proof": "NOT_CARRIED" if not_carried else "CARRIED",
         "quarantine_lifted": lifted,
         "replay": {key: replay_out.get(key) for key in ("status", "passed", "failed", "errors", "total")},
         "result": result,
+        "snapshot": snapshot_label,
+        "snapshot_error": snapshot_error,
         "state": state_name,
         "trace": trace,
+        "tree": snap.tree,
     }
     payload["replay"]["detail"] = replay_out.get("detail")
     stable = dict(payload)
     stable["replay"] = {key: payload["replay"][key] for key in ("status", "passed", "failed", "errors", "total")}
     cert_id = _certificate_id(stable)
     payload["id"] = cert_id
+    payload["valid"] = result == "PASS"
     text = _render(payload)
     payload["text"] = text
     _write_json(state_dir / "certificates" / f"{cert_id}.json", payload)
     (state_dir / "certificates" / f"{cert_id}.txt").write_text(text)
     (state_dir / "latest.txt").write_text(text)
     invalidated_ids = list(previous.get("invalidated_certificates") or [])
-    valid_id = previous.get("valid_certificate")
+    valid_id = None if not_carried else previous.get("valid_certificate")
     if invalidated and valid_id:
         invalidated_ids.append(valid_id)
         valid_id = None
@@ -269,8 +392,12 @@ def run_check(
         "frozen_digest": frozen,
         "invalidated_certificates": invalidated_ids,
         "last_seen": payload["issued_at"],
-        "observed_commit": commit,
+        "observed_commit": snap.commit,
         "observed_digest": observed,
+        "observed_tree": snap.tree,
+        "observer_digest": observer,
+        "reason": reason,
+        "result": result,
         "status": state_name,
         "valid_certificate": valid_id,
     }
@@ -321,7 +448,7 @@ def _replay_from_args(args):
     if getattr(args, "no_replay", False):
         return None
     timeout = getattr(args, "timeout", 180)
-    return lambda: pytest_replay(args.repo_path, timeout=timeout)
+    return lambda snapshot: pytest_replay(snapshot, timeout=timeout)
 
 
 def main(argv: list[str] | None = None) -> int:

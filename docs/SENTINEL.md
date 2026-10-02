@@ -1,29 +1,36 @@
 # P2R-Ω Sentinel
 
-The sentinel watches the frozen core. It is not a second protocol.
+The sentinel watches the frozen core. It is not a second protocol, and `QUARANTINED` is not a registry status.
 
 ```text
-OBSERVED → VERIFIED → CERTIFIED → WATCHING
-                └─ DRIFT → QUARANTINED
+SNAPSHOT → OBSERVE → REPLAY → CERTIFY → WATCH → INVALIDATE
 ```
 
-`QUARANTINED` is a sentinel state in `.sentinel/`. It is not a registry status and it does not gate `execute`.
+`watch --interval 2` only decides when to look. The certificate is the object.
 
-## Boundary
+## One snapshot
 
-`sentinel/` does not import `p2r`. A replay is a separate `pytest` process. The sentinel process never calls `execute` and never opens the registry.
+A `PASS` is bound to one git commit and one tree id. Digest, imports, effect paths, and replay all run on a detached worktree of that commit. After the replay, the sentinel reads the same commit again. If the worktree bytes or the tree id moved, the result is `FAIL`, not `PASS`.
 
-A certificate is `PASS` only when all of these hold:
+A dirty worktree is `UNKNOWN` with `SNAPSHOT: WORKTREE_DIRTY`. It is not certified, and it is not a core drift.
 
-- the core digest equals the authorized digest
-- `src/p2r/` imports none of `skills`, `rules`, `agents`, `hooks`, `docs`, `assurance`, `sentinel`
-- the only `def execute(` is `src/p2r/executor.py`
-- no active hook is installed
-- the replay process passed
+```text
+OBSERVED_COMMIT: <commit>
+TREE: <tree>
+CORE_DIGEST: <digest>
+REPLAY: 151/151
+RESULT: PASS
+```
 
-Anything missing, including a skipped replay, is `UNKNOWN`. A skipped replay does not leave `QUARANTINED`.
+## What is not allowed to authorize a new core
 
-The authorized digest starts as `tests/integration/core_manifest.json`. `accept` can record a different local digest in `.sentinel/authorized.json`. That file is not the core. The certificate then says `FROZEN: DIVERGED`.
+`tests/integration/core_manifest.json` is inside the commit being watched. The sentinel reports whether it agrees. Agreement does not make `PASS`.
+
+The pin is `.sentinel/frozen.json`, seeded from `sentinel/pin.py` (the core digest at `c4d8053`). `accept` may write `.sentinel/authorized.json`. It does not rewrite the pin, `src/p2r/`, or the manifest. The certificate then says `FROZEN: DIVERGED`.
+
+## The sentinel is not invisible
+
+Each certificate records the digest of the sentinel code that emitted it. If that code changes, the previous certificate stays on disk but `automatically_valid` becomes false and the next certificate says `PRIOR_PROOF: NOT_CARRIED`. That is not `QUARANTINED`. Core quarantine is only for a failed observation of a snapshot: digest, boundary, hooks, replay, or a snapshot that changed during the replay.
 
 ## Run
 
@@ -31,9 +38,6 @@ The authorized digest starts as `tests/integration/core_manifest.json`. `accept`
 python scripts/p2r-sentinel check --no-replay
 python scripts/p2r-sentinel check
 python scripts/p2r-sentinel watch --interval 2
-python scripts/p2r-sentinel status
 ```
 
-`check` without `--no-replay` runs the suite. `watch` re-runs it only when the observed tree changes. An unchanged `WATCHING` state does not emit a new certificate.
-
-Leaving quarantine happens in two ways only: the core bytes return to the authorized digest and a replay passes (`QUARANTINE LIFTED: restored`), or an operator runs `accept` after a passing replay (`QUARANTINE LIFTED: accepted`). `accept` does not edit `src/p2r/` or the manifest.
+`--no-replay` stops at `VERIFIED` / `UNKNOWN`. It does not leave `QUARANTINED`. The sentinel process does not import `p2r`. Replay is a separate pytest process whose cwd is the snapshot, not the live tree.

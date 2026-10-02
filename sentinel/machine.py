@@ -22,7 +22,13 @@ def result_of(
     digest_match: bool,
     boundary_ok: bool,
     replay_status: str,
+    snapshot_bound: bool = True,
+    snapshot_ok: bool = True,
 ) -> str:
+    if not snapshot_bound:
+        return "UNKNOWN"
+    if not snapshot_ok:
+        return "FAIL"
     if not baseline_known:
         return "UNKNOWN"
     if not digest_match or not boundary_ok:
@@ -34,7 +40,9 @@ def result_of(
     return "UNKNOWN"
 
 
-def settle(previous: str | None, result: str, baseline_known: bool) -> tuple[str, list[str]]:
+def settle(previous: str | None, result: str, baseline_known: bool, snapshot_bound: bool = True) -> tuple[str, list[str]]:
+    if not snapshot_bound:
+        return "OBSERVED", ["OBSERVED"]
     if not baseline_known:
         return "OBSERVED", ["OBSERVED"]
     if result == "PASS":
