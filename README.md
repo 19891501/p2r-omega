@@ -130,7 +130,7 @@ python -m pip install -e ".[dev]"
 pytest -q
 ```
 
-Expected result on this tree: `159 passed`. The bounded registry model is the slow test. The count at `ac81c41`, before `tests/integration/`, was `127 passed` on both that commit and its parent.
+Expected result on this tree: `163 passed`. The bounded registry model is the slow test. The count at `ac81c41`, before `tests/integration/`, was `127 passed` on both that commit and its parent.
 Heavier volumes are not repeated on every `pytest`:
 
 ```bash

@@ -17,7 +17,9 @@ python scripts/p2r-sentinel watch --interval 2
 python scripts/p2r-sentinel status
 ```
 
-`daemon` is the long-running cycle. It journals `.sentinel/journal.jsonl`. It replays only when the certified snapshot no longer covers HEAD, or when `--replay-every` SECONDS has elapsed. It does not trade, size, or send orders. `watch` remains a short poll.
+`daemon` is the long-running cycle. It journals `.sentinel/journal.jsonl` as a hash chain. It replays only when the certified snapshot no longer covers HEAD, or when `--replay-every` SECONDS has elapsed. It does not trade, size, or send orders. `watch` remains a short poll.
+
+Before trusting a cached `WATCHING`, the chain, `journal.tip`, `frozen.json`, and the certificate bytes must still match. If they do not, the result is `JOURNAL_BROKEN` / `UNKNOWN`, not `PASS`. A `WATCHING` cache does not erase a `QUARANTINED` line. Replacing all of `.sentinel/` is not a continuation.
 
 `check` without `--no-replay` runs pytest in a detached worktree of `HEAD`. That is one certificate. `daemon` repeats that only when the snapshot changed.
 
@@ -40,4 +42,5 @@ If the worktree is dirty, the result is `UNKNOWN`. Do not call that a drift.
 - treat `tests/integration/core_manifest.json` as the pin
 - reuse a certificate whose sentinel digest differs; that is `PRIOR_PROOF: NOT_CARRIED`, not a core quarantine
 - report `--no-replay` as `PASS`
-- describe `QUARANTINED` as a core registry status
+- report `PASS` when the journal chain, the pin, or a certificate file does not match
+- describe `QUARANTINED` or `JOURNAL_BROKEN` as a core registry status

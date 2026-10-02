@@ -10,7 +10,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from sentinel.journal import append, now
+from sentinel.journal import JournalBroken, append, cache_conflicts, file_sha256, now, read, survey
 from sentinel.service import _read_json, _write_json, run_check
 from sentinel.snapshot import head_ids, observer_digest, porcelain
 
@@ -18,7 +18,7 @@ from sentinel.snapshot import head_ids, observer_digest, porcelain
 def certificate_covers(state: dict | None, commit: str | None, tree: str | None, dirty: bool) -> bool:
     if not state or dirty or not commit or not tree:
         return False
-    if state.get("status") == "QUARANTINED":
+    if state.get("status") in {"QUARANTINED", "JOURNAL_BROKEN"}:
         return False
     if not state.get("valid_certificate"):
         return False
@@ -71,39 +71,85 @@ def _entry_from_cert(cert: dict) -> dict:
     }
 
 
+def _stamp(state_dir: Path, entry: dict) -> dict:
+    body = dict(entry)
+    body["pin"] = file_sha256(state_dir / "frozen.json")
+    certificate_id = body.get("certificate_id")
+    if certificate_id:
+        body["certificate_sha256"] = file_sha256(state_dir / "certificates" / f"{certificate_id}.json")
+    return body
+
+
+def _untrusted(state_dir: Path, reason: str, commit: str | None, tree: str | None) -> dict:
+    state = _read_json(state_dir / "state.json") or {}
+    state["status"] = "JOURNAL_BROKEN"
+    state["journal_reason"] = reason
+    state["last_seen"] = now()
+    _write_json(state_dir / "state.json", state)
+    (state_dir / "latest.txt").write_text(f"JOURNAL: {reason}\nRESULT: UNKNOWN\nSTATE: JOURNAL_BROKEN\n")
+    return {
+        "commit": commit,
+        "event": "JOURNAL_BROKEN",
+        "reason": reason,
+        "replay": "SKIPPED",
+        "result": "UNKNOWN",
+        "state": "JOURNAL_BROKEN",
+        "tree": tree,
+    }
+
+
 def cycle(repo: Path, state_dir: Path, *, replay, replay_every: float | None, now_epoch: float) -> dict:
     repo = repo.resolve()
     state_dir = state_dir.resolve()
     state_dir.mkdir(parents=True, exist_ok=True)
     state = _read_json(state_dir / "state.json") or {}
     commit, tree, dirty = _look(repo)
+    problem = survey(state_dir)
+    if problem:
+        return _untrusted(state_dir, problem, commit, tree)
+    rows = read(state_dir)
     observer = state.get("observer_digest")
     same_observer = observer is None or observer == observer_digest()
-    if certificate_covers(state, commit, tree, dirty) and same_observer and not replay_due(state, now_epoch, replay_every):
+    covered = (
+        certificate_covers(state, commit, tree, dirty)
+        and same_observer
+        and not replay_due(state, now_epoch, replay_every)
+        and not cache_conflicts(state, rows)
+    )
+    if covered:
         state["last_seen"] = now()
         state["status"] = "WATCHING"
         _write_json(state_dir / "state.json", state)
-        return append(
-            state_dir,
-            {
-                "certificate_id": state.get("valid_certificate"),
-                "commit": commit,
-                "core_digest": state.get("observed_digest"),
-                "event": "UNCHANGED",
-                "replay": "SKIPPED",
-                "result": "PASS",
-                "snapshot": "BOUND",
-                "state": "WATCHING",
-                "tree": tree,
-            },
-        )
+        try:
+            return append(
+                state_dir,
+                _stamp(
+                    state_dir,
+                    {
+                        "certificate_id": state.get("valid_certificate"),
+                        "commit": commit,
+                        "core_digest": state.get("observed_digest"),
+                        "event": "UNCHANGED",
+                        "replay": "SKIPPED",
+                        "result": "PASS",
+                        "snapshot": "BOUND",
+                        "state": "WATCHING",
+                        "tree": tree,
+                    },
+                ),
+            )
+        except JournalBroken as exc:
+            return _untrusted(state_dir, exc.reason, commit, tree)
     previous_replay = state.get("last_replay_at")
     cert = run_check(repo, state_dir, replay=None if dirty else replay, emit_if_unchanged=False)
     fresh = _read_json(state_dir / "state.json") or {}
     ran = (cert.get("replay") or {}).get("status") not in {None, "SKIPPED"}
     fresh["last_replay_at"] = now_epoch if ran else previous_replay
     _write_json(state_dir / "state.json", fresh)
-    return append(state_dir, _entry_from_cert(cert))
+    try:
+        return append(state_dir, _stamp(state_dir, _entry_from_cert(cert)))
+    except JournalBroken as exc:
+        return _untrusted(state_dir, exc.reason, commit, tree)
 
 
 def run_daemon(

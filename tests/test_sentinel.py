@@ -141,6 +141,7 @@ def test_identity_drift_quarantines_and_invalidates(tmp_path):
     repo = _repo(tmp_path)
     state = tmp_path / "state"
     first = observe(repo, state, replay=lambda: _passed())
+    issued = (state / "certificates" / f"{first['id']}.json").read_bytes()
     path = repo / "src" / "p2r" / "executor.py"
     path.write_text(EXECUTOR + "\n")
     _commit(repo, "drift")
@@ -153,11 +154,13 @@ def test_identity_drift_quarantines_and_invalidates(tmp_path):
     assert "Previous certificate invalidated" in second["text"]
     assert "STATUS = QUARANTINED" in second["text"]
     assert "4/4" in second["text"]
-    stored = json.loads((state / "certificates" / f"{first['id']}.json").read_text())
-    assert stored["valid"] is False
+    stored = json.loads(issued)
+    assert stored["valid"] is True
     current = json.loads((state / "state.json").read_text())
     assert current["valid_certificate"] is None
     assert first["id"] in current["invalidated_certificates"]
+    assert second["previous_certificate_invalidated"] is True
+    assert (state / "certificates" / f"{first['id']}.json").read_bytes() == issued
 
 
 def test_skipped_replay_does_not_lift_quarantine(tmp_path):
@@ -404,14 +407,13 @@ def test_observer_change_does_not_carry_the_previous_proof(tmp_path):
     repo = _repo(tmp_path)
     state = tmp_path / "state"
     first = observe(repo, state, replay=lambda: _passed(), observer="observer-a")
+    issued = (state / "certificates" / f"{first['id']}.json").read_bytes()
     second = observe(repo, state, replay=lambda: _passed(), observer="observer-b")
     assert second["result"] == "PASS"
     assert second["state"] == "WATCHING"
     assert second["prior_proof"] == "NOT_CARRIED"
     assert "PRIOR_PROOF: NOT_CARRIED" in second["text"]
-    stored = json.loads((state / "certificates" / f"{first['id']}.json").read_text())
-    assert stored["automatically_valid"] is False
-    assert stored["not_carried_reason"] == "observer_changed"
+    assert (state / "certificates" / f"{first['id']}.json").read_bytes() == issued
 
 
 def test_replay_is_not_due_while_the_certificate_covers():
@@ -518,3 +520,142 @@ def test_daemon_drift_quarantines_without_writing_the_core(tmp_path):
     assert restored["state"] == "WATCHING"
     assert restored["result"] == "PASS"
     assert path.read_bytes() == original
+
+
+def test_journal_is_a_hash_chain(tmp_path):
+    from sentinel.journal import GENESIS, append, entry_hash, survey
+
+    state = tmp_path / "state"
+    first = append(state, {"event": "CERTIFIED", "pin": None})
+    second = append(state, {"event": "UNCHANGED", "pin": None})
+    assert first["seq"] == 0 and first["prev"] == GENESIS
+    assert second["seq"] == 1 and second["prev"] == first["hash"]
+    assert first["hash"] == entry_hash(first)
+    assert survey(state) is None
+
+
+def test_edited_or_truncated_journal_is_not_a_pass(tmp_path):
+    from sentinel.daemon import cycle
+    from sentinel.journal import path_for
+
+    repo = _repo(tmp_path)
+    state = tmp_path / "state"
+    _bind(repo, state)
+    calls = {"n": 0}
+
+    def replay(_snapshot):
+        calls["n"] += 1
+        return _passed()
+
+    cycle(repo, state, replay=replay, replay_every=None, now_epoch=1)
+    journal = path_for(state)
+    original = journal.read_bytes()
+    lines = journal.read_text().splitlines()
+    row = json.loads(lines[0])
+    row["event"] = "UNCHANGED"
+    lines[0] = json.dumps(row, sort_keys=True, separators=(",", ":"))
+    journal.write_text("\n".join(lines) + "\n")
+    broken = cycle(repo, state, replay=replay, replay_every=None, now_epoch=2)
+    assert broken["event"] == "JOURNAL_BROKEN"
+    assert broken["reason"] == "CHAIN_BROKEN"
+    assert broken["result"] == "UNKNOWN"
+    assert calls["n"] == 1
+    assert journal.read_bytes() == ("\n".join(lines) + "\n").encode()
+    journal.write_bytes(original)
+    resumed = cycle(repo, state, replay=replay, replay_every=None, now_epoch=3)
+    assert resumed["event"] == "CERTIFIED"
+    assert calls["n"] == 2
+    kept = journal.read_text().splitlines()[0]
+    journal.write_text(kept + "\n")
+    removed = cycle(repo, state, replay=replay, replay_every=None, now_epoch=4)
+    assert removed["reason"] == "TIP_MISMATCH"
+    assert calls["n"] == 2
+
+
+def test_pin_or_certificate_edit_does_not_recertify(tmp_path):
+    from sentinel.daemon import cycle
+
+    repo = _repo(tmp_path)
+    state = tmp_path / "state"
+    _bind(repo, state)
+    calls = {"n": 0}
+
+    def replay(_snapshot):
+        calls["n"] += 1
+        return _passed()
+
+    first = cycle(repo, state, replay=replay, replay_every=None, now_epoch=1)
+    certificate = state / "certificates" / f"{first['certificate_id']}.json"
+    certificate.write_text(certificate.read_text().replace("PASS", "FAIL", 1))
+    edited = cycle(repo, state, replay=replay, replay_every=None, now_epoch=2)
+    assert edited["event"] == "JOURNAL_BROKEN"
+    assert edited["reason"] == "CERTIFICATE_MISMATCH"
+    assert edited["result"] == "UNKNOWN"
+    assert calls["n"] == 1
+
+    other = tmp_path / "other"
+    _bind(repo, other)
+    cycle(repo, other, replay=replay, replay_every=None, now_epoch=3)
+    pin = other / "frozen.json"
+    pin.write_text(pin.read_text().replace("test", "swapped"))
+    swapped = cycle(repo, other, replay=replay, replay_every=None, now_epoch=4)
+    assert swapped["reason"] == "PIN_CHANGED"
+    assert calls["n"] == 2
+
+
+def test_pin_or_certificate_edit_does_not_recertify(tmp_path):
+    from sentinel.daemon import cycle
+
+    repo = _repo(tmp_path)
+    state = tmp_path / "state"
+    _bind(repo, state)
+    calls = {"n": 0}
+
+    def replay(_snapshot):
+        calls["n"] += 1
+        return _passed()
+
+    first = cycle(repo, state, replay=replay, replay_every=None, now_epoch=1)
+    pin = state / "frozen.json"
+    pin.write_text(pin.read_text().replace("test", "swapped"))
+    swapped = cycle(repo, state, replay=replay, replay_every=None, now_epoch=2)
+    assert swapped["event"] == "JOURNAL_BROKEN"
+    assert swapped["reason"] == "PIN_CHANGED"
+    assert calls["n"] == 1
+    pin.write_text(pin.read_text().replace("swapped", "test"))
+    certificate = state / "certificates" / f"{first['certificate_id']}.json"
+    certificate.write_text(certificate.read_text().replace("PASS", "FAIL", 1))
+    edited = cycle(repo, state, replay=replay, replay_every=None, now_epoch=3)
+    assert edited["reason"] == "CERTIFICATE_MISMATCH"
+    assert edited["result"] == "UNKNOWN"
+    assert calls["n"] == 1
+
+
+def test_watching_cannot_hide_a_quarantine(tmp_path):
+    from sentinel.daemon import cycle
+
+    repo = _repo(tmp_path)
+    state = tmp_path / "state"
+    _bind(repo, state)
+    path = repo / "src" / "p2r" / "executor.py"
+    calls = {"n": 0}
+
+    def replay(_snapshot):
+        calls["n"] += 1
+        return _passed()
+
+    cycle(repo, state, replay=replay, replay_every=None, now_epoch=1)
+    path.write_text(path.read_text() + "\n")
+    _commit(repo, "drift")
+    cycle(repo, state, replay=replay, replay_every=None, now_epoch=2)
+    cached = json.loads((state / "state.json").read_text())
+    cached["status"] = "WATCHING"
+    cached["valid_certificate"] = "forged"
+    (state / "state.json").write_text(json.dumps(cached))
+    seen = calls["n"]
+    hidden = cycle(repo, state, replay=replay, replay_every=None, now_epoch=3)
+    assert calls["n"] == seen + 1
+    assert hidden["event"] == "DRIFT"
+    assert hidden["state"] == "QUARANTINED"
+    assert hidden["result"] == "FAIL"
+    assert json.loads((state / "state.json").read_text())["valid_certificate"] is None

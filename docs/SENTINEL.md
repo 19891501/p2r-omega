@@ -30,7 +30,7 @@ The pin is `.sentinel/frozen.json`, seeded from `sentinel/pin.py` (the core dige
 
 ## The sentinel is not invisible
 
-Each certificate records the digest of the sentinel code that emitted it. If that code changes, the previous certificate stays on disk but `automatically_valid` becomes false and the next certificate says `PRIOR_PROOF: NOT_CARRIED`. That is not `QUARANTINED`. Core quarantine is only for a failed observation of a snapshot: digest, boundary, hooks, replay, or a snapshot that changed during the replay.
+Each certificate file is immutable after it is written. If the sentinel code changes, the next certificate says `PRIOR_PROOF: NOT_CARRIED` and the old id is no longer the valid certificate. The old file is not rewritten. That is not `QUARANTINED`. Core quarantine is only for a failed observation of a snapshot: digest, boundary, hooks, replay, or a snapshot that changed during the replay. The invalidated id is recorded in `.sentinel/state.json` and in the next certificate, not by editing the old one.
 
 ## Run
 
@@ -41,6 +41,8 @@ python scripts/p2r-sentinel daemon
 python scripts/p2r-sentinel watch --interval 2
 ```
 
-`daemon` is the persistent cycle. It sleeps, wakes, and appends `.sentinel/journal.jsonl`. A wake whose commit and tree are still covered by the valid certificate does not replay and does not mint a new proof. A changed snapshot replays before any new certificate. `QUARANTINED` is written only in that journal and in `.sentinel/`, never in the core registry. The process does not decide, authorize, execute, or edit `src/p2r/`.
+`daemon` is the persistent cycle. It sleeps, wakes, and appends `.sentinel/journal.jsonl`. Each line carries the hash of the previous line, the pin file, and the certificate bytes. A wake whose commit and tree are still covered by the valid certificate does not replay and does not mint a new proof. A changed snapshot replays before any new certificate. `QUARANTINED` is written only in that journal and in `.sentinel/`, never in the core registry. The process does not decide, authorize, execute, or edit `src/p2r/`.
+
+Surveillance runs before the fast path. An edited line, a deleted line, a rewritten `frozen.json`, or a rewritten certificate becomes `JOURNAL_BROKEN` / `UNKNOWN`. That is not a core drift and it is not a pass. `state.json` saying `WATCHING` does not hide a quarantine that the chain still records. Replacing the whole `.sentinel/` directory has no external witness; it is a new local history, not a continuation.
 
 `--no-replay` stops at `VERIFIED` / `UNKNOWN`. It does not leave `QUARANTINED`. The sentinel process does not import `p2r`. Replay is a separate pytest process whose cwd is the snapshot, not the live tree.

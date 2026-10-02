@@ -313,11 +313,6 @@ def run_check(
     not_carried = False
     previous_observer = previous.get("observer_digest")
     if previous.get("valid_certificate") and previous_observer and previous_observer != observer:
-        prior = _read_json(state_dir / "certificates" / f"{previous['valid_certificate']}.json")
-        if prior is not None:
-            prior["automatically_valid"] = False
-            prior["not_carried_reason"] = "observer_changed"
-            _write_json(state_dir / "certificates" / f"{prior['id']}.json", prior)
         not_carried = True
     lifted = previous.get("status") == "QUARANTINED" and state_name == "WATCHING"
     invalidated = state_name == "QUARANTINED" and previous.get("status") != "QUARANTINED" and bool(previous.get("valid_certificate"))
@@ -376,11 +371,6 @@ def run_check(
     if invalidated and valid_id:
         invalidated_ids.append(valid_id)
         valid_id = None
-        prior = _read_json(state_dir / "certificates" / f"{invalidated_ids[-1]}.json")
-        if prior is not None:
-            prior["valid"] = False
-            prior["invalidated_at"] = payload["issued_at"]
-            _write_json(state_dir / "certificates" / f"{prior['id']}.json", prior)
     if result == "PASS":
         valid_id = cert_id
     elif state_name == "QUARANTINED":
