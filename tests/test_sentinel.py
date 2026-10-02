@@ -659,3 +659,88 @@ def test_watching_cannot_hide_a_quarantine(tmp_path):
     assert hidden["state"] == "QUARANTINED"
     assert hidden["result"] == "FAIL"
     assert json.loads((state / "state.json").read_text())["valid_certificate"] is None
+
+
+def _foreign(tmp_path: Path) -> Path:
+    repo = tmp_path / "foreign"
+    repo.mkdir()
+    (repo / "sample.py").write_text("def add(a, b):\n    return a + b\n")
+    (repo / "tests").mkdir()
+    (repo / "tests" / "test_sample.py").write_text(
+        "from sample import add\n\ndef test_add():\n    assert add(1, 1) == 2\n"
+    )
+    _commit(repo, "foreign")
+    return repo
+
+
+def test_external_certificate_is_not_a_p2r_certification(tmp_path):
+    from sentinel.certify import run_certify
+
+    repo = _foreign(tmp_path)
+    state = tmp_path / "state"
+    cert = run_certify(repo, state, replay=lambda _snapshot: _passed())
+    assert cert["status"] == "OBSERVED"
+    assert cert["subject"] == "external"
+    assert cert["baseline"] == "ESTABLISHED"
+    assert "IMPORT BOUNDARY: NOT_CHECKED" in cert["text"]
+    assert "EFFECT PATH: NOT_CHECKED" in cert["text"]
+    assert "PAYMENT: NOT_COLLECTED" in cert["text"]
+    assert "STATUS: CERTIFIED" not in cert["text"]
+    assert FROZEN_CORE_DIGEST not in cert["text"]
+    assert not (state / "frozen.json").exists()
+    assert (state / "subject.json").is_file()
+    other_root = tmp_path / "fresh"
+    other_root.mkdir()
+    other = _foreign(other_root)
+    untouched = (other / "sample.py").read_bytes()
+    unknown = run_certify(other, tmp_path / "noreplay", replay=None)
+    assert unknown["status"] == "UNKNOWN"
+    assert unknown["replay"] == "SKIPPED"
+    assert not (tmp_path / "noreplay" / "subject.json").exists()
+    assert (other / "sample.py").read_bytes() == untouched
+
+
+def test_external_drift_does_not_move_the_baseline(tmp_path):
+    from sentinel.certify import run_certify
+
+    repo = _foreign(tmp_path)
+    state = tmp_path / "state"
+    first = run_certify(repo, state, replay=lambda _snapshot: _passed())
+    pinned = (state / "subject.json").read_bytes()
+    (repo / "sample.py").write_text("def add(a, b):\n    return 0\n")
+    _commit(repo, "drift")
+    second = run_certify(repo, state, replay=lambda _snapshot: _passed())
+    assert second["status"] == "DRIFT"
+    assert second["baseline"] == "DRIFT"
+    assert "STATUS: DRIFT" in second["text"]
+    assert (state / "subject.json").read_bytes() == pinned
+    assert first["digest"] != second["digest"]
+
+
+def test_p2r_certify_still_uses_the_core_boundary(tmp_path):
+    from sentinel.certify import run_certify
+
+    repo = _repo(tmp_path)
+    state = tmp_path / "state"
+    _bind(repo, state)
+    cert = run_certify(repo, state, replay=lambda _snapshot: _passed())
+    assert cert["status"] == "CERTIFIED"
+    assert cert["subject"] == "p2r"
+    assert "IMPORT BOUNDARY: PASS" in cert["text"]
+    assert "EFFECT PATH: 1" in cert["text"]
+    assert "REPLAY: PASS" in cert["text"]
+    assert not (state / "subject.json").exists()
+
+
+def test_certify_command_replays_an_external_repository(tmp_path, capsys):
+    repo = _foreign(tmp_path)
+    code = main(["certify", str(repo)])
+    text = capsys.readouterr().out
+    assert code == 0
+    assert "P2R-Ω CERTIFICATE" in text
+    assert "SUBJECT: external" in text
+    assert "REPLAY: PASS" in text
+    assert "STATUS: OBSERVED" in text
+    assert "BASELINE: ESTABLISHED" in text
+    assert "PAYMENT: NOT_COLLECTED" in text
+    assert "STATUS: CERTIFIED" not in text

@@ -10,6 +10,7 @@ The sentinel does not import `p2r` and does not call `execute`.
 ## Run
 
 ```bash
+python scripts/p2r-sentinel certify <repo>
 python scripts/p2r-sentinel check --no-replay
 python scripts/p2r-sentinel check
 python scripts/p2r-sentinel daemon
@@ -21,7 +22,7 @@ python scripts/p2r-sentinel status
 
 Before trusting a cached `WATCHING`, the chain, `journal.tip`, `frozen.json`, and the certificate bytes must still match. If they do not, the result is `JOURNAL_BROKEN` / `UNKNOWN`, not `PASS`. A `WATCHING` cache does not erase a `QUARANTINED` line. Replacing all of `.sentinel/` is not a continuation.
 
-`check` without `--no-replay` runs pytest in a detached worktree of `HEAD`. That is one certificate. `daemon` repeats that only when the snapshot changed.
+`certify <repo>` is one certificate, not a daemon and not a payment. `CERTIFIED` is only for this core: pin, one effect path, import boundary, replay. A repository without `src/p2r` is `SUBJECT: external`. A passing replay there is `OBSERVED`, never `CERTIFIED`. `PAYMENT: NOT_COLLECTED` until money actually moves.
 
 ## Pass
 

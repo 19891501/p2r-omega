@@ -16,11 +16,15 @@ dev = [
     "pytest>=8,<9",
 ]
 
+[project.scripts]
+p2r-sentinel = "sentinel.__main__:main"
+
 [tool.setuptools]
-package-dir = {"" = "src"}
+package-dir = {"" = "src", "sentinel" = "sentinel"}
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["p2r*", "sentinel*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

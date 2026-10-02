@@ -466,12 +466,19 @@ def main(argv: list[str] | None = None) -> int:
     daemon_cmd.add_argument("--detach", action="store_true")
     daemon_cmd.add_argument("--timeout", type=float, default=180)
 
+    certify_cmd = sub.add_parser("certify")
+    certify_cmd.add_argument("target", nargs="?")
+    certify_cmd.add_argument("--no-replay", action="store_true")
+    certify_cmd.add_argument("--timeout", type=float, default=180)
+
     sub.add_parser("status")
 
     accept_cmd = sub.add_parser("accept")
     accept_cmd.add_argument("--timeout", type=float, default=180)
 
     args = parser.parse_args(argv)
+    if args.cmd == "certify" and getattr(args, "target", None):
+        args.repo = args.target
     args.repo_path = Path(args.repo).resolve()
     state_dir = _state_dir(args.repo_path, args.state_dir)
     try:
@@ -481,6 +488,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.cmd == "check":
             cert = run_check(args.repo_path, state_dir, replay=_replay_from_args(args))
+        elif args.cmd == "certify":
+            from sentinel.certify import run_certify
+
+            cert = run_certify(args.repo_path, state_dir, replay=_replay_from_args(args))
         elif args.cmd == "watch":
             if args.detach:
                 state_dir.mkdir(parents=True, exist_ok=True)

@@ -32,7 +32,15 @@ The pin is `.sentinel/frozen.json`, seeded from `sentinel/pin.py` (the core dige
 
 Each certificate file is immutable after it is written. If the sentinel code changes, the next certificate says `PRIOR_PROOF: NOT_CARRIED` and the old id is no longer the valid certificate. The old file is not rewritten. That is not `QUARANTINED`. Core quarantine is only for a failed observation of a snapshot: digest, boundary, hooks, replay, or a snapshot that changed during the replay. The invalidated id is recorded in `.sentinel/state.json` and in the next certificate, not by editing the old one.
 
-## Run
+## One certificate
+
+```bash
+python scripts/p2r-sentinel certify <repo>
+```
+
+This is one observation. It is not a subscription and it does not collect payment.
+
+On this repository, `CERTIFIED` still means the frozen core: clean snapshot, digest equal to the pin, one effect path, import boundary intact, replay passed. On a repository with no `src/p2r`, the same command does not apply that pin and does not print `CERTIFIED`. A passing replay is `OBSERVED` / `BASELINE: ESTABLISHED`. A later different tree is `DRIFT`, and the baseline file is left untouched. `PAYMENT: NOT_COLLECTED` until a buyer actually pays.
 
 ```bash
 python scripts/p2r-sentinel check --no-replay

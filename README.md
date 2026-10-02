@@ -130,7 +130,7 @@ python -m pip install -e ".[dev]"
 pytest -q
 ```
 
-Expected result on this tree: `163 passed`. The bounded registry model is the slow test. The count at `ac81c41`, before `tests/integration/`, was `127 passed` on both that commit and its parent.
+Expected result on this tree: `167 passed`. The bounded registry model is the slow test. The count at `ac81c41`, before `tests/integration/`, was `127 passed` on both that commit and its parent.
 Heavier volumes are not repeated on every `pytest`:
 
 ```bash
@@ -228,7 +228,7 @@ tests/                  the suite pytest already runs
 sentinel/               outside watcher, not an import of the core
 ```
 
-`python scripts/p2r-sentinel daemon` repeats that cycle and appends `.sentinel/journal.jsonl`. It does not write the core registry. A dirty tree or `--no-replay` stays `UNKNOWN`. `QUARANTINED` in `.sentinel/` is not a registry status. See `docs/SENTINEL.md`.
+`python scripts/p2r-sentinel certify <repo>` is one certificate. On this repository that can be `CERTIFIED`. On a repository without `src/p2r` it is an external observation, not a core certification, and it does not collect payment. `python scripts/p2r-sentinel daemon` repeats the local cycle and appends `.sentinel/journal.jsonl`. It does not write the core registry. A dirty tree or `--no-replay` stays `UNKNOWN`. `QUARANTINED` in `.sentinel/` is not a registry status. See `docs/SENTINEL.md`.
 
 ## Status tags
 
