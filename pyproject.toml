@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "p2r-omega"
 version = "0.1.0"
-description = "P2R-Ω Core — Proof-to-Realization Object"
+description = "Permis d'agir — lecture d'un workflow n8n, moteur P2R-Ω"
 requires-python = ">=3.11"
 dependencies = [
     "cryptography>=43,<47",
@@ -18,13 +18,14 @@ dev = [
 
 [project.scripts]
 p2r-sentinel = "sentinel.__main__:main"
+permis = "permis.__main__:main"
 
 [tool.setuptools]
 package-dir = {"" = "src", "sentinel" = "sentinel"}
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["p2r*", "sentinel*"]
+include = ["p2r*", "sentinel*", "permis*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
