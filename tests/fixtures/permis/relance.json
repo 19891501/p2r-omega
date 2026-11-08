@@ -1,0 +1,124 @@
+{
+  "name": "Relance factures",
+  "nodes": [
+    {
+      "id": "t1",
+      "name": "Chaque matin",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "parameters": {}
+    },
+    {
+      "id": "r1",
+      "name": "Lire factures",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [200, 0],
+      "parameters": {}
+    },
+    {
+      "id": "m1",
+      "name": "Modèle",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [400, 200],
+      "parameters": {}
+    },
+    {
+      "id": "a1",
+      "name": "Agent relance",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1,
+      "position": [400, 0],
+      "parameters": {}
+    },
+    {
+      "id": "c1",
+      "name": "Mettre en forme",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 0],
+      "parameters": {"jsCode": "return items;"}
+    },
+    {
+      "id": "g1",
+      "name": "Envoyer au client",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [880, 0],
+      "parameters": {
+        "operation": "send",
+        "sendTo": "={{ $('Lire factures').item.json.Email }}",
+        "subject": "Facture en retard",
+        "message": "={{ $json.text }}"
+      },
+      "credentials": {"gmailOAuth2": {"id": "cred-1", "name": "Gmail agence"}}
+    },
+    {
+      "id": "g2",
+      "name": "Alerter le juridique",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [880, 200],
+      "parameters": {
+        "operation": "send",
+        "sendTo": "user@example.com",
+        "subject": "Escalade",
+        "message": "À vérifier"
+      }
+    },
+    {
+      "id": "u1",
+      "name": "Mettre à jour la facture",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1120, 0],
+      "parameters": {"operation": "update"}
+    },
+    {
+      "id": "u2",
+      "name": "Journal",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1120, 160],
+      "parameters": {"operation": "append"}
+    },
+    {
+      "id": "s1",
+      "name": "Slack erreur",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [640, 220],
+      "parameters": {"operation": "post"}
+    },
+    {
+      "id": "s2",
+      "name": "Slack vide",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [640, 380],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Chaque matin": {"main": [[{"node": "Lire factures", "type": "main", "index": 0}]]},
+    "Lire factures": {"main": [[{"node": "Agent relance", "type": "main", "index": 0}]]},
+    "Modèle": {"ai_languageModel": [[{"node": "Agent relance", "type": "ai_languageModel", "index": 0}]]},
+    "Agent relance": {
+      "main": [[
+        {"node": "Mettre en forme", "type": "main", "index": 0},
+        {"node": "Alerter le juridique", "type": "main", "index": 0},
+        {"node": "Slack erreur", "type": "main", "index": 0},
+        {"node": "Slack vide", "type": "main", "index": 0}
+      ]]
+    },
+    "Mettre en forme": {
+      "main": [[
+        {"node": "Envoyer au client", "type": "main", "index": 0},
+        {"node": "Mettre à jour la facture", "type": "main", "index": 0},
+        {"node": "Journal", "type": "main", "index": 0}
+      ]]
+    }
+  }
+}
